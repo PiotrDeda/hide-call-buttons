@@ -1,9 +1,9 @@
 {
 	"format": 1,
-	"id": "piotrdeda.hide-call-buttons",
+	"id": "claude.hide-call-buttons",
 	"name": "Hide Call Buttons",
 	"description": "Hides call buttons from DMs, user profiles and voice channels.",
-	"author": "PiotrDeda, John (janisslsm)",
+	"author": "Claude, John (janisslsm)",
 	"icon": "PhoneCallIcon",
 	"version": "1.0.0",
 	"dependencies": {
