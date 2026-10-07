@@ -1,0 +1,1 @@
+{"name":"Hide Call Buttons","description":"Hides call buttons from DMs, user profiles and voice channels.","authors":[{"name":"Claude"},{"name":"John","id":"780819226839220265"}],"main":"index.js","vendetta":{"icon":"PhoneCallIcon"},"hash":"d7bbcbd7132ab9d1aa442164d5db8a19df64102462366cd4dcd3bced464d043f"}
