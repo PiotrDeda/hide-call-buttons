@@ -8,7 +8,7 @@ declare module '@vendetta/metro' {
 
 declare module '@vendetta/metro/common' {
 	export const React: typeof import('react')
-	export const ReactNative: typeof import('react-native')
+	export const ReactNative: Record<string, any>
 }
 
 declare module '@vendetta/patcher' {

@@ -10,7 +10,7 @@
 			"id": "780819226839220265"
 		}
 	],
-	"main": "index.ts",
+	"main": "src/index.ts",
 	"vendetta": {
 		"icon": "PhoneCallIcon"
 	}

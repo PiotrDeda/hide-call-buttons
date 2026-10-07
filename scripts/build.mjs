@@ -1,14 +1,13 @@
-// Builds Revenge Classic (Vendetta API) bundles from `plugins/<name>/classic`.
-// Output: plugins/<name>/build/classic/{manifest.json,index.js}
+// Builds the plugin for Revenge Classic (Vendetta plugin API).
+// Output: dist/{manifest.json,index.js}, served as the plugin install URL.
 
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { transform as swcTransform } from '@swc/core'
 import { rolldown } from 'rolldown'
 
-const PluginsDir = 'plugins'
+const OutDir = 'dist'
 const JsxRuntimeId = '\0classic-jsx-runtime'
 
 /** Maps an external module to the global expression the Classic loader exposes. */
@@ -83,48 +82,39 @@ const hermesSwcPlugin = {
 	},
 }
 
-const names = process.argv.slice(2)
+const manifest = JSON.parse(await readFile('manifest.json', 'utf8'))
 
-for (const name of names.length ? names : readdirSync(PluginsDir)) {
-	const dir = `${PluginsDir}/${name}/classic`
-	const manifestPath = `${dir}/manifest.json`
-	if (!existsSync(manifestPath)) continue
+const bundle = await rolldown({
+	input: manifest.main,
+	platform: 'neutral',
+	external: isExternal,
+	plugins: [jsxRuntimePlugin, hermesSwcPlugin],
+	transform: { target: 'es2020' },
+	onwarn(warning, warn) {
+		if (warning.code === 'MISSING_NAME_OPTION_FOR_IIFE_EXPORT') return
+		warn(warning)
+	},
+})
 
-	const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+const { output } = await bundle.generate({
+	format: 'iife',
+	globals: globalFor,
+	exports: 'named',
+	esModule: false,
+	minify: true,
+})
+await bundle.close()
 
-	const bundle = await rolldown({
-		input: `${dir}/${manifest.main}`,
-		platform: 'neutral',
-		external: isExternal,
-		plugins: [jsxRuntimePlugin, hermesSwcPlugin],
-		transform: { target: 'es2020' },
-		onwarn(warning, warn) {
-			if (warning.code === 'MISSING_NAME_OPTION_FOR_IIFE_EXPORT') return
-			warn(warning)
-		},
-	})
+// The loader evaluates `vendetta => { return <code> }`, so the bundle must be one expression.
+const code = output[0].code.trim()
+if (!code.startsWith('(function'))
+	throw new Error('Bundle is not an IIFE expression')
 
-	const { output } = await bundle.generate({
-		format: 'iife',
-		globals: globalFor,
-		exports: 'named',
-		esModule: false,
-		minify: true,
-	})
-	await bundle.close()
+await mkdir(OutDir, { recursive: true })
+await writeFile(`${OutDir}/index.js`, code, 'utf8')
 
-	// The loader evaluates `vendetta => { return <code> }`, so the bundle must be one expression.
-	const code = output[0].code.trim()
-	if (!code.startsWith('(function'))
-		throw new Error(`${name}: bundle is not an IIFE expression`)
+manifest.main = 'index.js'
+manifest.hash = createHash('sha256').update(code).digest('hex')
+await writeFile(`${OutDir}/manifest.json`, JSON.stringify(manifest), 'utf8')
 
-	const outDir = `${PluginsDir}/${name}/build/classic`
-	await mkdir(outDir, { recursive: true })
-	await writeFile(`${outDir}/index.js`, code, 'utf8')
-
-	manifest.main = 'index.js'
-	manifest.hash = createHash('sha256').update(code).digest('hex')
-	await writeFile(`${outDir}/manifest.json`, JSON.stringify(manifest), 'utf8')
-
-	console.log(`✓ Built Classic bundle for ${name}`)
-}
+console.log(`\u2713 Built ${manifest.name} to ${OutDir}/`)

@@ -5,7 +5,7 @@ export type ElementMatcher = (node: unknown) => boolean
 
 type AnyProps = Record<string, unknown>
 
-/** Icon references resolved by the host mod. */
+/** Resolved icon references. */
 export interface ResolvedIcons {
 	/** Asset IDs. */
 	assets: Iterable<unknown>

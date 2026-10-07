@@ -3,7 +3,7 @@ import { ReactNative } from '@vendetta/metro/common'
 import { storage } from '@vendetta/plugin'
 import { useProxy } from '@vendetta/storage'
 import { getAssetIDByName } from '@vendetta/ui/assets'
-import { DefaultSettings, SettingGroups } from '../js/storage'
+import { DefaultSettings, SettingGroups } from './storage'
 
 export default function Settings() {
 	useProxy(storage)
