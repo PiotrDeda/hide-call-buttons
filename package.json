@@ -5,6 +5,7 @@
 	"scripts": {
 		"build": "revenge-plugin build",
 		"build:dev": "revenge-plugin build --dev",
+		"build:classic": "node scripts/build-classic.mjs",
 		"generate-index": "revenge-plugin generate-index",
 		"plan-releases": "revenge-plugin plan-releases",
 		"serve": "revenge-plugin serve",
@@ -19,9 +20,11 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.12",
+		"@swc/core": "^1.16.2",
 		"@types/node": "^26.4.1",
 		"@types/react": "^19.2.18",
 		"react-native": "0.81.6",
+		"rolldown": "^1.2.7",
 		"typescript": "^7.0.2"
 	},
 	"overrides": {

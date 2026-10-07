@@ -1,11 +1,17 @@
-import { getAssetIdByName } from '@revenge-mod/assets'
-import { lookupGeneratedIconComponent } from '@revenge-mod/utils/discord'
 import { cloneElement, isValidElement } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 
 export type ElementMatcher = (node: unknown) => boolean
 
 type AnyProps = Record<string, unknown>
+
+/** Icon references resolved by the host mod. */
+export interface ResolvedIcons {
+	/** Asset IDs. */
+	assets: Iterable<unknown>
+	/** Generated icon components. */
+	components: Iterable<unknown>
+}
 
 const MaxDepth = 16
 
@@ -14,25 +20,12 @@ const MaxDepth = 16
  *
  * Matches an element when its `icon`, `source` or `IconComponent` prop references the icon,
  * or when it is a pressable whose first child renders the icon.
- *
- * @param componentName The generated icon component name, also used as an asset name.
- * @param legacyAssetNames Asset names used by older Discord versions.
  */
-export function createIconMatcher(
-	componentName: string,
-	...legacyAssetNames: string[]
-): ElementMatcher {
-	const assets = new Set<unknown>()
-	for (const name of [componentName, ...legacyAssetNames]) {
-		const id = getAssetIdByName(name)
-		if (id !== undefined) assets.add(id)
-	}
-
-	const components = new Set<unknown>()
-	try {
-		const Icon = lookupGeneratedIconComponent(componentName)
-		if (Icon) components.add(Icon)
-	} catch {}
+export function createIconMatcher(icons: ResolvedIcons): ElementMatcher {
+	const assets = new Set<unknown>(icons.assets)
+	const components = new Set<unknown>(icons.components)
+	assets.delete(undefined)
+	components.delete(undefined)
 
 	const isIcon = (icon: unknown): boolean => {
 		if (icon == null) return false

@@ -1,3 +1,4 @@
+import { getAssetIdByName } from '@revenge-mod/assets'
 import { getModules } from '@revenge-mod/modules/finders'
 import {
 	createFilterGenerator,
@@ -5,17 +6,19 @@ import {
 	withProps,
 } from '@revenge-mod/modules/finders/filters'
 import { after, instead } from '@revenge-mod/patcher'
-import { isValidElement } from 'react'
+import { lookupGeneratedIconComponent } from '@revenge-mod/utils/discord'
 import {
-	createIconMatcher,
-	removeElements,
-	removeRootChildrenAt,
-} from './buttons'
+	ContactButtonsNames,
+	createRenderPatches,
+	DMHeaderButtonsName,
+	LegacyDMHeaderButtonsProp,
+	ProfileActionsName,
+	VCVideoButtonName,
+} from './patches'
 import SettingsComponent from './settings'
 import { DefaultSettings } from './storage'
 import type { PluginCleanupApi } from '@revenge-mod/plugins/types'
-import type { ReactNode } from 'react'
-import type { ElementMatcher } from './buttons'
+import type { RenderPatch } from './patches'
 import type { Settings } from './storage'
 
 type AnyFunction = (...args: any[]) => any
@@ -38,57 +41,24 @@ export default plugin<{ jsonStorage: Settings }>({
 			(jsonStorage.cache as Partial<Settings> | undefined)?.[key] ??
 			DefaultSettings[key]
 
-		const isCallButton = createIconMatcher(
-			'PhoneCallIcon',
-			'ic_audio',
-			'nav_header_connect',
-		)
-		const isVideoButton = createIconMatcher('VideoIcon', 'ic_video', 'video')
-
-		const matcherFor =
-			(call: boolean, video: boolean): ElementMatcher =>
-			node =>
-				(call && isCallButton(node)) || (video && isVideoButton(node))
-
-		/** Collects indices for the positional fallback. */
-		const indicesFor = (
-			call: boolean,
-			video: boolean,
-			[callIndex, videoIndex]: [number, number],
-		) => [...(call ? [callIndex] : []), ...(video ? [videoIndex] : [])]
+		const patches = createRenderPatches(setting, names => ({
+			assets: names.map(name => getAssetIdByName(name)),
+			components: [lookupIconComponent(names[0]!)],
+		}))
 
 		// User profile
-		patchDefaultExport(cleanup, 'UserProfileActions', tree => {
-			const call = setting('upHideVoiceButton')
-			const video = setting('upHideVideoButton')
-			if (!call && !video) return tree
-
-			return removeElements(tree, matcherFor(call, video))
-		})
+		patchDefaultExport(cleanup, ProfileActionsName, patches.profileActions)
 
 		// Simplified user profile
-		for (const name of [
-			'SimplifiedUserProfileContactButtons',
-			'UserProfileContactButtons',
-		])
-			patchDefaultExport(cleanup, name, tree => {
-				const call = setting('upHideVoiceButton')
-				const video = setting('upHideVideoButton')
-				if (!call && !video) return tree
-
-				const result = removeElements(tree, matcherFor(call, video))
-				if (result !== tree) return result
-
-				// Last known layout: [message, voice call, video call, ...]
-				return removeRootChildrenAt(tree, indicesFor(call, video, [1, 2]))
-			})
+		for (const name of ContactButtonsNames)
+			patchDefaultExport(cleanup, name, patches.contactButtons)
 
 		// Voice channel
 		cleanup(
 			getModules(
-				withName('VideoButton'),
+				withName(VCVideoButtonName),
 				exports => {
-					if (!hasDefaultNamed(exports, 'VideoButton')) return
+					if (!hasDefaultNamed(exports, VCVideoButtonName)) return
 
 					cleanup(
 						instead(
@@ -107,44 +77,21 @@ export default plugin<{ jsonStorage: Settings }>({
 
 		// Tabs V2 DM header
 		cleanup(
-			getModules(withMemoName('PrivateChannelButtons'), memo => {
+			getModules(withMemoName(DMHeaderButtonsName), memo => {
 				cleanup(
-					after(memo as { type: AnyFunction }, 'type', (tree: ReactNode) => {
-						const call = setting('dmHideCallButton')
-						const video = setting('dmHideVideoButton')
-						if (!call && !video) return tree
-
-						const result = removeElements(tree, matcherFor(call, video))
-						if (result !== tree) return result
-
-						// Last known layout: [voice call, video call, ...] with accessibility labels
-						return removeRootChildrenAt(
-							tree,
-							indicesFor(call, video, [0, 1]),
-							([first]) =>
-								isValidElement(first) &&
-								(first.props as Record<string, unknown>).accessibilityLabel !==
-									undefined,
-						)
-					}),
+					after(memo as { type: AnyFunction }, 'type', patches.dmHeaderButtons),
 				)
 			}),
 		)
 
 		// Legacy UI DM header
 		cleanup(
-			getModules(withProps('ChannelButtons'), exports => {
+			getModules(withProps(LegacyDMHeaderButtonsProp), exports => {
 				cleanup(
 					after(
-						exports as { ChannelButtons: AnyFunction },
-						'ChannelButtons',
-						(tree: ReactNode) => {
-							const call = setting('dmHideCallButton')
-							const video = setting('dmHideVideoButton')
-							if (!call && !video) return tree
-
-							return removeElements(tree, matcherFor(call, video))
-						},
+						exports as unknown as Record<string, AnyFunction>,
+						LegacyDMHeaderButtonsProp,
+						patches.legacyDMHeaderButtons,
 					),
 				)
 			}),
@@ -152,6 +99,12 @@ export default plugin<{ jsonStorage: Settings }>({
 	},
 	SettingsComponent,
 })
+
+function lookupIconComponent(name: string) {
+	try {
+		return lookupGeneratedIconComponent(name)
+	} catch {}
+}
 
 function hasDefaultNamed(exports: unknown, name: string) {
 	const component = (exports as { default?: { name?: unknown } } | undefined)
@@ -166,7 +119,7 @@ function hasDefaultNamed(exports: unknown, name: string) {
 function patchDefaultExport(
 	cleanup: PluginCleanupApi,
 	name: string,
-	patch: (tree: ReactNode) => ReactNode,
+	patch: RenderPatch,
 ) {
 	cleanup(
 		getModules(
